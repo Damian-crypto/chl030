@@ -1,3 +1,4 @@
+#include <cmath>
 #include <vector>
 #include <sstream>
 #include <fstream>
@@ -14,6 +15,7 @@ public:
     int classRank;
     int schoolRank;
     int totalMarks;
+    float zScore;
     unordered_map<string, int> marks;
 
     virtual void readMarks() {};
@@ -107,18 +109,36 @@ class SchoolClass
 {
 public:
     static int id;
+    int totalMarks = 0;
     vector<Student*> students;
+
+    float calculateZScore(float x, float mean, float sd)
+    {
+        return (x - mean) / sd;
+    }
 
     void addStudent(Student* stu)
     {
         stu->id = id++;
+        totalMarks += stu->totalMarks;
         students.push_back(stu);
     }
 
-    void rankStudents()
+    void rankStudents(float mean = 0.0f, float sd = 0.0f)
     {
+        // Sort based on total-marks
+        // sort(begin(students), end(students), [](Student* s1, Student* s2) {
+        //     return s1->totalMarks > s2->totalMarks;
+        // });
+
+        // Sort based on z-score
+        for (Student* stu : students)
+        {
+            stu->zScore = calculateZScore(stu->totalMarks, mean, sd);
+        }
+
         sort(begin(students), end(students), [](Student* s1, Student* s2) {
-            return s1->totalMarks > s2->totalMarks;
+            return s1->zScore - s2->zScore > 0.00001; // accuracy upto 5 decimal places
         });
 
         int prvMarks = -1;
@@ -138,19 +158,46 @@ int SchoolClass::id = 1;
 class School
 {
 public:
+    int totalMarks = 0;
+    int totalStudentCount = 0;
     vector<SchoolClass> classes;
 
-    void addClass(const SchoolClass &stu)
+    void addClass(const SchoolClass &cls)
     {
-        classes.push_back(stu);
+        totalMarks += cls.totalMarks;
+        totalStudentCount += (int)cls.students.size();
+        classes.push_back(cls);
+    }
+
+    float calculateMean()
+    {
+        return (float)totalMarks / (float)totalStudentCount;
+    }
+
+    float calculateVariance()
+    {
+        float variance = 0.0f;
+        float mean = calculateMean();
+        for (SchoolClass& cls : classes)
+        {
+            for (Student* stu : cls.students)
+            {
+                variance += pow(stu->totalMarks - mean, 2);
+            }
+        }
+
+        return variance;
     }
 
     void rankStudents()
     {
         int currentRank = 1;
+        float mean = calculateMean();
+        float sd = pow(calculateVariance(), 0.5f);
+        
         for (SchoolClass& cls : classes)
         {
-            cls.rankStudents();
+            cls.rankStudents(mean, sd);
 
             for (Student* stu : cls.students)
             {
@@ -191,9 +238,9 @@ public:
 
 int main()
 {
-    const int classSize = 2;
-    const int bioClasses = 1;
-    const int mathsClasses = 2;
+    const int classSize = 40;
+    const int bioClasses = 3;
+    const int mathsClasses = 5;
 
     School school;
 
